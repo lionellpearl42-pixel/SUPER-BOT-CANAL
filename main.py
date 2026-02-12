@@ -234,9 +234,6 @@ async def iniciar_scheduler():
     scheduler.add_job(postar, "interval", hours=2, id="post_job", args=[app])
     scheduler.start()
 
-async def main():
-    await iniciar_scheduler()
-    await app.run_polling()
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    app.run_polling(on_startup=iniciar_scheduler)
+
