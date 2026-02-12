@@ -230,9 +230,10 @@ app.add_handler(CallbackQueryHandler(menu_handler))
 
 scheduler = AsyncIOScheduler()
 
-async def setup():
-    scheduler.add_job(postar, "interval", hours=2, id="post_job", args=[app])
+async def setup(application: Application):
+    scheduler.add_job(postar, "interval", hours=2, id="post_job", args=[application])
     scheduler.start()
+
 
 if __name__ == "__main__":
     app.post_init = setup
