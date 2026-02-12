@@ -230,10 +230,12 @@ app.add_handler(CallbackQueryHandler(menu_handler))
 
 scheduler = AsyncIOScheduler()
 
-async def iniciar_scheduler():
+async def setup():
     scheduler.add_job(postar, "interval", hours=2, id="post_job", args=[app])
     scheduler.start()
 
 if __name__ == "__main__":
-    app.run_polling(on_startup=iniciar_scheduler)
+    app.post_init = setup
+    app.run_polling()
+
 
