@@ -35,23 +35,22 @@ def save_config(data):
     with open(CONFIG_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-# ===== PROMPTS IA =====
+# ===== PROMPTS =====
 PROMPT_STYLES = {
     "romantico": [
-        "Escreva um texto romântico profundo, intenso e marcante, com começo, meio e fim"
+        "Escreva um texto romântico intenso, profundo e marcante com começo, meio e fim"
     ],
     "sensual": [
-        "Escreva um texto sensual elegante, intenso e provocante, com começo, meio e fim"
+        "Escreva um texto sensual elegante, provocante e intenso com começo, meio e fim"
     ],
     "dark": [
-        "Escreva um texto dark romance melancólico, profundo e intenso, com começo, meio e fim"
+        "Escreva um texto dark romance profundo, melancólico e intenso com começo, meio e fim"
     ],
     "fofo": [
-        "Escreva um texto fofo, doce e emocional, com começo, meio e fim"
+        "Escreva um texto fofo, doce e emocional com começo, meio e fim"
     ]
 }
 
-# ===== CONTROLE TAMANHO REAL =====
 TEXT_LIMITS = {
     "curto": 140,
     "medio": 220,
@@ -72,11 +71,11 @@ async def gerar_post(style, size):
                     "role": "system",
                     "content": (
                         "Gere UM ÚNICO TEXTO curto, em UMA ÚNICA ESTROFE. "
-                        "O TEXTO DEVE TER começo, meio e fim. "
+                        "Deve ter começo, meio e fim. "
                         "Finalize a ideia completamente. "
                         "Não use clichês repetidos. "
                         "Não quebre linhas. "
-                        "Parecer humano, intenso e natural."
+                        "Parecer humano e emocional."
                     )
                 },
                 {"role": "user", "content": prompt}
@@ -88,11 +87,9 @@ async def gerar_post(style, size):
         texto = response.choices[0].message.content.strip()
         texto = texto.replace("\n", " ").replace("  ", " ")
 
-        # ===== CORTAR SE PASSAR DO LIMITE =====
         if len(texto) > char_limit:
             texto = texto[:char_limit].rsplit(" ", 1)[0] + "."
 
-        # ===== GARANTIR FINAL =====
         if not texto.endswith("."):
             texto += "."
 
@@ -102,7 +99,7 @@ async def gerar_post(style, size):
         print("❌ ERRO GROQ:", e)
         return "⚠️ IA temporariamente indisponível."
 
-# ===== POSTAGEM =====
+# ===== POSTAR =====
 async def postar(app: Application):
     config = load_config()
     if not config["enabled"]:
@@ -231,7 +228,6 @@ app.add_handler(CommandHandler("addcanal", add_canal))
 app.add_handler(CommandHandler("intervalo", intervalo))
 app.add_handler(CallbackQueryHandler(menu_handler))
 
-# ===== SCHEDULER =====
 scheduler = AsyncIOScheduler()
 
 async def iniciar_scheduler():
