@@ -70,27 +70,25 @@ async def gerar_post(style, size):
                 {
                     "role": "system",
                     "content": (
-                        "Gere UM ÚNICO TEXTO curto, em UMA ÚNICA ESTROFE. "
-                        "Deve ter começo, meio e fim. "
-                        "Finalize a ideia completamente. "
-                        "Não use clichês repetidos. "
-                        "Não quebre linhas. "
-                        "Parecer humano e emocional."
+                        f"Gere UM ÚNICO TEXTO em UMA ÚNICA ESTROFE. "
+                        f"O texto deve ter NO MÁXIMO {char_limit} caracteres. "
+                        f"Deve ter começo, meio e fim. "
+                        f"Finalize completamente a ideia. "
+                        f"Não quebre linhas. "
+                        f"Não pare no meio da frase."
                     )
                 },
                 {"role": "user", "content": prompt}
             ],
             temperature=0.9,
-            max_tokens=250
+            max_tokens=180
         )
 
         texto = response.choices[0].message.content.strip()
         texto = texto.replace("\n", " ").replace("  ", " ")
 
-        if len(texto) > char_limit:
-            texto = texto[:char_limit].rsplit(" ", 1)[0] + "."
-
-        if not texto.endswith("."):
+        # Se não terminar com ponto, tenta ajustar
+        if not texto.endswith((".", "!", "?")):
             texto += "."
 
         return texto
@@ -98,6 +96,7 @@ async def gerar_post(style, size):
     except Exception as e:
         print("❌ ERRO GROQ:", e)
         return "⚠️ IA temporariamente indisponível."
+
 
 # ===== POSTAR =====
 async def postar(app: Application):
