@@ -1,7 +1,10 @@
 import os
 import json
 import random
+import re
 import asyncio
+import threading
+from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -25,7 +28,7 @@ DEFAULT_CONFIG = {
 
 if not os.path.exists(CONFIG_FILE):
     with open(CONFIG_FILE, "w") as f:
-        json.dump(DEFAULT_CONFIG, f)
+        json.dump(DEFAULT_CONFIG, f, indent=4)
 
 def load_config():
     with open(CONFIG_FILE, "r") as f:
@@ -58,9 +61,18 @@ TEXT_LIMITS = {
     "gigante": 480
 }
 
-# ===== GERAR TEXTO =====
+# ===== GERAR TEXTO HUMANO =====
 async def gerar_post(style, size):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
+    # Instruções extras para soar humano
+    prompt += (
+        "\nFaça o texto parecer que uma pessoa real está escrevendo. "
+        "Evite repetir palavras ou frases. "
+        "Use variações na construção das sentenças, inclua pausas naturais, "
+        "expressões humanas e emoção. "
+        "Deixe a escrita fluida e envolvente."
+    )
+
     char_limit = TEXT_LIMITS.get(size, 220)
 
     try:
@@ -75,19 +87,26 @@ async def gerar_post(style, size):
                         f"Deve ter começo, meio e fim. "
                         f"Finalize completamente a ideia. "
                         f"Não quebre linhas. "
-                        f"Não pare no meio da frase."
+                        f"Não pare no meio da frase. "
+                        f"Faça o texto parecer humano: natural, emocional, variado e sem repetições."
                     )
                 },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.9,
+            temperature=1.0,
+            top_p=0.9,
+            frequency_penalty=0.5,
+            presence_penalty=0.3,
             max_tokens=180
         )
 
         texto = response.choices[0].message.content.strip()
         texto = texto.replace("\n", " ").replace("  ", " ")
 
-        # Se não terminar com ponto, tenta ajustar
+        # Remove repetições consecutivas
+        texto = re.sub(r'\b(\w+)( \1\b)+', r'\1', texto)
+
+        # Finaliza pontuação
         if not texto.endswith((".", "!", "?")):
             texto += "."
 
@@ -96,7 +115,6 @@ async def gerar_post(style, size):
     except Exception as e:
         print("❌ ERRO GROQ:", e)
         return "⚠️ IA temporariamente indisponível."
-
 
 # ===== POSTAR =====
 async def postar(app: Application):
@@ -111,6 +129,19 @@ async def postar(app: Application):
             print(f"✅ Post enviado para {canal}")
         except Exception as e:
             print(f"❌ Erro em {canal}: {e}")
+
+# ===== SERVIDOR WEB PARA UPTIME ROBOT =====
+web_app = Flask('')
+
+@web_app.route('/')
+def home():
+    return "Bot está vivo 🚀"
+
+def run_web():
+    web_app.run(host='0.0.0.0', port=8080)
+
+# Roda o servidor Flask em uma thread separada
+threading.Thread(target=run_web).start()
 
 # ===== MENU =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -129,72 +160,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💘 BOT ROMÂNTICO IA\n\nTextos curtos, intensos e completos",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-
-async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    config = load_config()
-
-    if query.data == "channels":
-        canais = "\n".join(config["channels"]) if config["channels"] else "Nenhum canal"
-        await query.edit_message_text(f"📢 Canais:\n{canais}\n\nUse /addcanal @canal")
-
-    elif query.data == "interval":
-        await query.edit_message_text(f"⏰ Intervalo: {config['interval']}h\nUse /intervalo 2")
-
-    elif query.data == "style":
-        buttons = [
-            [InlineKeyboardButton("💗 Fofo", callback_data="setstyle_fofo")],
-            [InlineKeyboardButton("🔥 Romântico", callback_data="setstyle_romantico")],
-            [InlineKeyboardButton("😈 Sensual", callback_data="setstyle_sensual")],
-            [InlineKeyboardButton("🖤 Dark", callback_data="setstyle_dark")]
-        ]
-        await query.edit_message_text("🎨 Escolha o estilo:", reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif query.data == "size":
-        buttons = [
-            [InlineKeyboardButton("✏️ Curto", callback_data="setsize_curto")],
-            [InlineKeyboardButton("📝 Médio", callback_data="setsize_medio")],
-            [InlineKeyboardButton("📜 Longo", callback_data="setsize_longo")],
-            [InlineKeyboardButton("📖 Gigante", callback_data="setsize_gigante")]
-        ]
-        await query.edit_message_text("📏 Escolha o tamanho:", reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif query.data.startswith("setstyle_"):
-        config["style"] = query.data.replace("setstyle_", "")
-        save_config(config)
-        await query.edit_message_text("✅ Estilo atualizado")
-
-    elif query.data.startswith("setsize_"):
-        config["text_size"] = query.data.replace("setsize_", "")
-        save_config(config)
-        await query.edit_message_text("✅ Tamanho atualizado")
-
-    elif query.data == "enable":
-        config["enabled"] = True
-        save_config(config)
-        await query.edit_message_text("▶️ Autopost ATIVADO")
-
-    elif query.data == "disable":
-        config["enabled"] = False
-        save_config(config)
-        await query.edit_message_text("⏸ Autopost PAUSADO")
-
-    elif query.data == "post_now":
-        await query.edit_message_text("⚡ Gerando agora...")
-        await postar(context.application)
-        await query.edit_message_text("✅ Post enviado")
-
-    elif query.data == "status":
-        status = "🟢 ATIVO" if config["enabled"] else "🔴 PAUSADO"
-        await query.edit_message_text(
-            f"📊 STATUS\n\n"
-            f"Canais: {len(config['channels'])}\n"
-            f"Intervalo: {config['interval']}h\n"
-            f"Estilo: {config['style']}\n"
-            f"Tamanho: {config['text_size']}\n"
-            f"Status: {status}"
-        )
 
 # ===== COMANDOS =====
 async def add_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -233,9 +198,6 @@ async def setup(application: Application):
     scheduler.add_job(postar, "interval", hours=2, id="post_job", args=[application])
     scheduler.start()
 
-
 if __name__ == "__main__":
     app.post_init = setup
     app.run_polling()
-
-
